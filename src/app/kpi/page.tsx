@@ -82,11 +82,9 @@ const KpisPage: FC = () => {
     setLoading(true);
     try {
       const employeeId = localStorage.getItem('employeeId');
-      // Determine API sort field (backend supports createdAt, startdate, deadline)
       const apiSortField = sortField === 'startdate' || sortField === 'deadline' ? sortField : 'createdAt';
       const sortOrder = sortAsc ? 'asc' : 'desc';
 
-      // Build common payload
       const payload: any = {
         search,
         page,
@@ -99,7 +97,6 @@ const KpisPage: FC = () => {
         payload.endDate = endDate;
       }
 
-      // Subadmin (except special) -> getByEmployeeId
       if (role === 'subadmin' && employeeId && employeeId !== 'EMC01010') {
         payload.employeeId = employeeId;
         const res = await post<{ success: boolean; data: { kpis: any[] } }>('/kpi/getByEmployeeId', payload);
@@ -127,7 +124,6 @@ const KpisPage: FC = () => {
           Swal.fire('Error', 'Failed to fetch your KPIs', 'error');
         }
       } else {
-        // Admins and others -> getAll
         const res = await post<{
           success: boolean;
           data: { kpis: any[]; page: number; pageSize: number; total: number };
@@ -167,7 +163,6 @@ const KpisPage: FC = () => {
     if (canView) fetchData();
   }, [canView, fetchData]);
 
-  // Sorting and paging (client-side fallbacks)
   const sorted = useMemo(
     () => [...data].sort((a, b) => {
       const aVal = a[sortField] ?? '';
@@ -183,7 +178,6 @@ const KpisPage: FC = () => {
     [sorted, page]
   );
 
-  // Handlers
   const onSort = (field: keyof KpiItem) => {
     if (field === sortField) setSortAsc(p => !p);
     else { setSortField(field); setSortAsc(true); }
@@ -192,6 +186,44 @@ const KpisPage: FC = () => {
   const toggleExpand = (id: string) => setExpanded(prev => ({ ...prev, [id]: !prev[id] }));
   const handleAdd = () => router.push('/kpi/addupdate');
   const handleEdit = (id: string) => router.push(`/kpi/addupdate?kpiId=${id}`);
+
+  const handlePunch = async (kpiId: string) => {
+    const { value: remark } = await Swal.fire({
+      title: 'Punch In',
+      input: 'textarea',
+      inputLabel: 'Remark',
+      inputPlaceholder: 'Enter your remark...',
+      showCancelButton: true
+    });
+    if (!remark) return;
+    try {
+      setLoading(true);
+      const res = await post<{ success: boolean; data: any }>('/kpi/punch', { kpiId, remark });
+      if (res.success) {
+        Swal.fire('Success', 'Punch recorded successfully', 'success');
+        fetchData();
+      } else {
+        Swal.fire('Error', 'Punch failed', 'error');
+      }
+    } catch {
+      Swal.fire('Error', 'Punch request failed', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleViewPunch = (date: string, remark: string, status: string | null) => {
+    Swal.fire({
+      title: 'Last Punch Details',
+      html: `
+        <p><strong>Date:</strong> ${date}</p>
+        <p><strong>Remark:</strong> ${remark}</p>
+        <p><strong>Status:</strong> ${status}</p>
+      `,
+      icon: 'info'
+    });
+  };
+
   const handleDelete = async (id: string) => {
     const { isConfirmed } = await Swal.fire({
       title: 'Delete KPI?',
@@ -209,16 +241,6 @@ const KpisPage: FC = () => {
       Swal.fire('Error', 'Delete request failed', 'error');
     }
   };
-
-  function handleViewPunch(arg0: string, arg1: string, arg2: string): void {
-    throw new Error('Function not implemented.');
-  }
-
-  function handlePunch(kpiId: string): void {
-    throw new Error('Function not implemented.');
-  }
-
-  // Punch-In handlers omitted for brevity (unchanged)
 
   return (
     <div className="min-h-screen bg-indigo-100 p-4">
